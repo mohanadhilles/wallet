@@ -1,0 +1,434 @@
+{
+  "info": {
+    "name": "Wallet API",
+    "_postman_id": "wallet-api-collection",
+    "description": "Collection for the Go Wallet API — OTP auth, user profile, wallet, and transactions.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "auth_token",
+      "value": "",
+      "description": "JWT token — populated automatically by the Verify OTP test script."
+    },
+    {
+      "key": "otp_code",
+      "value": "",
+      "description": "OTP code — populated automatically by the Request OTP test script."
+    },
+    {
+      "key": "transaction_id",
+      "value": "",
+      "description": "Transaction ID — populated automatically by the Create Transaction test script."
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Ping",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/ping",
+              "host": ["{{base_url}}"],
+              "path": ["ping"]
+            },
+            "description": "Liveness check — returns {\"message\":\"pong\"}."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Request OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test(\"OTP code present\", () => pm.expect(body.Code || body.code).to.be.a(\"string\"));",
+                  "",
+                  "const code = body.Code || body.code;",
+                  "if (code) pm.collectionVariables.set(\"otp_code\", code);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/otp",
+              "host": ["{{base_url}}"],
+              "path": ["users", "otp"]
+            },
+            "description": "Generate an OTP for a username. Creates the user and wallet if they don't exist yet."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ID\": 1,\n  \"Username\": \"alice\",\n  \"Code\": \"483920\",\n  \"Used\": false,\n  \"CreatedAt\": \"2026-06-05T10:00:00Z\",\n  \"UpdatedAt\": \"2026-06-05T10:00:00Z\",\n  \"DeletedAt\": null\n}"
+            },
+            {
+              "name": "Invalid body",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"Invalid request\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Verify OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Token present\", () => pm.expect(body.token).to.be.a(\"string\").and.not.empty);",
+                  "",
+                  "pm.collectionVariables.set(\"auth_token\", body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"code\": \"{{otp_code}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/otp/verify",
+              "host": ["{{base_url}}"],
+              "path": ["users", "otp", "verify"]
+            },
+            "description": "Verify the OTP and receive a JWT token. The test script automatically stores the token in `auth_token`."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"\n}"
+            },
+            {
+              "name": "User not found",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"User not found\"\n}"
+            },
+            {
+              "name": "Wrong code",
+              "status": "Internal Server Error",
+              "code": 500,
+              "body": "{\n  \"error\": \"invalid OTP\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "User",
+      "item": [
+        {
+          "name": "Me",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test(\"User ID present\", () => pm.expect(body.ID || body.id).to.be.a(\"number\"));",
+                  "pm.test(\"Username present\", () => pm.expect(body.Username || body.username).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/me",
+              "host": ["{{base_url}}"],
+              "path": ["users", "me"]
+            },
+            "description": "Return the authenticated user including their wallet. Requires a valid JWT in the Authorization header."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ID\": 1,\n  \"Username\": \"alice\",\n  \"Email\": \"\",\n  \"Phone\": \"\",\n  \"Status\": false,\n  \"Wallet\": {\n    \"ID\": 1,\n    \"UserID\": 1,\n    \"Balance\": 0,\n    \"Currency\": \"\"\n  },\n  \"Transactions\": []\n}"
+            },
+            {
+              "name": "No token",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"error\": \"Authorization header is required\"\n}"
+            },
+            {
+              "name": "Invalid token",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"error\": \"Invalid token\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Wallet",
+      "item": [
+        {
+          "name": "Get My Wallet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Wallet present\", () => pm.expect(body.wallet).to.be.an(\"object\"));",
+                  "pm.test(\"Wallet ID present\", () => pm.expect(body.wallet.ID || body.wallet.id).to.be.a(\"number\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/wallets/me",
+              "host": ["{{base_url}}"],
+              "path": ["wallets", "me"]
+            },
+            "description": "Return the wallet belonging to the authenticated user."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"wallet\": {\n    \"ID\": 1,\n    \"UserID\": 1,\n    \"Balance\": 150.00,\n    \"Currency\": \"USD\"\n  }\n}"
+            },
+            {
+              "name": "Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"error\": \"Unauthorized\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Create Transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Transaction ID present\", () => pm.expect(body.ID || body.id).to.be.a(\"number\"));",
+                  "",
+                  "const id = body.ID || body.id;",
+                  "if (id) pm.collectionVariables.set(\"transaction_id\", String(id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"receiver_id\": {{receiver_id}},\n  \"amount\": 50.00\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/transactions/",
+              "host": ["{{base_url}}"],
+              "path": ["transactions", ""]
+            },
+            "description": "Transfer funds from the authenticated user's wallet to another user. The test script stores the new transaction ID in `transaction_id`."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ID\": 42,\n  \"SenderID\": 1,\n  \"ReceiverID\": 2,\n  \"Amount\": 50.00,\n  \"CreatedAt\": \"2026-06-05T10:00:00Z\"\n}"
+            },
+            {
+              "name": "Invalid body",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"Invalid request\"\n}"
+            },
+            {
+              "name": "Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"error\": \"Unauthorized\"\n}"
+            },
+            {
+              "name": "Server error",
+              "status": "Internal Server Error",
+              "code": 500,
+              "body": "{\n  \"error\": \"insufficient balance\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Transaction by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Transaction present\", () => pm.expect(body.transaction).to.be.an(\"object\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/transactions/{{transaction_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["transactions", "{{transaction_id}}"]
+            },
+            "description": "Fetch a single transaction by its ID. Uses `transaction_id` set by Create Transaction."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"transaction\": {\n    \"ID\": 42,\n    \"SenderID\": 1,\n    \"ReceiverID\": 2,\n    \"Amount\": 50.00,\n    \"CreatedAt\": \"2026-06-05T10:00:00Z\"\n  }\n}"
+            },
+            {
+              "name": "Invalid ID",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"Invalid transaction ID\"\n}"
+            },
+            {
+              "name": "Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"error\": \"Unauthorized\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Transactions by User ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Transactions array present\", () => pm.expect(body.transactions).to.be.an(\"array\"));",
+                  "pm.test(\"Pagination fields present\", () => {",
+                  "  pm.expect(body.page).to.be.a(\"number\");",
+                  "  pm.expect(body.pageSize).to.be.a(\"number\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/transactions/user/{{receiver_id}}?page=1&pageSize=10",
+              "host": ["{{base_url}}"],
+              "path": ["transactions", "user", "{{receiver_id}}"],
+              "query": [
+                { "key": "page", "value": "1", "description": "Page number (default: 1)" },
+                { "key": "pageSize", "value": "10", "description": "Items per page (default: 10)" }
+              ]
+            },
+            "description": "List all transactions for a given user ID, with pagination support via `page` and `pageSize` query params."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"transactions\": [\n    {\n      \"ID\": 42,\n      \"SenderID\": 1,\n      \"ReceiverID\": 2,\n      \"Amount\": 50.00,\n      \"CreatedAt\": \"2026-06-05T10:00:00Z\"\n    }\n  ],\n  \"page\": 1,\n  \"pageSize\": 10\n}"
+            },
+            {
+              "name": "Invalid user ID",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"Invalid user ID\"\n}"
+            },
+            {
+              "name": "Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"error\": \"Unauthorized\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16.3
+    container_name: feed-db
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=feed
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "5433:5432"
+volumes:
+  db-data:

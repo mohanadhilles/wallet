@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS transactions (
+    id BIGSERIAL PRIMARY KEY,
+    sender_id BIGINT NOT NULL,
+    receiver_id BIGINT NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    currency VARCHAR(10) default 'USD',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
+);
